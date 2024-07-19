@@ -1,0 +1,238 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "f5d2f6fd-e52e-4c40-98a6-bede9f5b07ee",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdin",
+     "output_type": "stream",
+     "text": [
+      "Enter your OpenAI API key:  ········\n"
+     ]
+    }
+   ],
+   "source": [
+    "from getpass import getpass\n",
+    "import openai\n",
+    "import os\n",
+    "os.environ[\"OPENAI_API_KEY\"] = getpass(\"Enter your OpenAI API key: \")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "f0db373b-a503-4945-b25e-057f83708bdb",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from PyPDF2 import PdfReader\n",
+    "from langchain.vectorstores import ElasticVectorSearch, Pinecone, Weaviate, FAISS\n",
+    "from langchain.embeddings.openai import OpenAIEmbeddings\n",
+    "from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter\n",
+    "from langchain.chains.question_answering import load_qa_chain\n",
+    "from langchain.llms import OpenAI"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "id": "05ee1e99-0fde-4397-8099-d3d8aa868ea5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "pdf_reader = PdfReader(\"Key_to_Budget_Document_2024_removed.pdf\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "id": "df485184-b869-4b1a-8cfb-41352e7003c3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "text = ''\n",
+    "for i, page in enumerate(pdf_reader.pages):\n",
+    "    text = page.extract_text()\n",
+    "    if text:\n",
+    "        text += text"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "id": "9f3404be-0b85-46a2-8957-ac0bf89df1d2",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "text_splitter = RecursiveCharacterTextSplitter(\n",
+    "chunk_size = 512,\n",
+    "chunk_overlap  = 32,\n",
+    "length_function = len,\n",
+    ")\n",
+    "texts = text_splitter.split_text(text)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "id": "9f9cc4f8-9038-419c-9b38-584fefc7bad2",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "['15\\ndeficit is gross fiscal deficit reduced by the gross interest payments. In the Budget documents\\n‘gross fiscal deficit’ and ‘gross primary deficit’ have been referred to in abbreviated form ‘fiscal\\ndeficit’ and ‘primary deficit’, respectively.\\n(ii)The document also includes a statement indicating the quantum and nature (share in\\nCentral Taxes, grants/loan) of the total Resources transferred to States and Union Territory',\n",
+       " 'Governments. Details of these transfers by way of share of taxes, grants-in-aid and loans are\\ngiven in Expenditure Profile (Statement No.18).  Bulk of grants and loans to States/UTs are\\ndisbursed by the Ministry of Finance and are included in the Demand ‘Transfers to States’ and\\nin the Demand ‘Transfer to Delhi’, Transfer to Puducherry’ and Transfer to Jammu & Kashmir.\\nThe grants and loans released to States and Union Territories by other Ministries/ Departments\\nare reflected in their respective Demands.',\n",
+       " 'I.Key Features of Budget 2024-25\\nThe Document is a snapshot summary of the economic vision of the Government and the\\nmajor policy initiatives in the thrust areas of the   economy for growth and welfare. Major\\nmilestones achieved in fiscal consolidation and management of the Government finances\\nalong with a bird’s eye view of the key budget proposals etc. are also included in the document.\\nJ.    Implementation of Budget Announcements 2023-24',\n",
+       " 'The Document summarises the status of implementation of the announcements made by\\nHon’ble Finance Minister in the Budget Speech 2023-24.15\\ndeficit is gross fiscal deficit reduced by the gross interest payments. In the Budget documents\\n‘gross fiscal deficit’ and ‘gross primary deficit’ have been referred to in abbreviated form ‘fiscal\\ndeficit’ and ‘primary deficit’, respectively.\\n(ii)The document also includes a statement indicating the quantum and nature (share in',\n",
+       " 'Central Taxes, grants/loan) of the total Resources transferred to States and Union Territory\\nGovernments. Details of these transfers by way of share of taxes, grants-in-aid and loans are\\ngiven in Expenditure Profile (Statement No.18).  Bulk of grants and loans to States/UTs are\\ndisbursed by the Ministry of Finance and are included in the Demand ‘Transfers to States’ and\\nin the Demand ‘Transfer to Delhi’, Transfer to Puducherry’ and Transfer to Jammu & Kashmir.',\n",
+       " 'The grants and loans released to States and Union Territories by other Ministries/ Departments\\nare reflected in their respective Demands.\\nI.Key Features of Budget 2024-25\\nThe Document is a snapshot summary of the economic vision of the Government and the\\nmajor policy initiatives in the thrust areas of the   economy for growth and welfare. Major\\nmilestones achieved in fiscal consolidation and management of the Government finances',\n",
+       " 'along with a bird’s eye view of the key budget proposals etc. are also included in the document.\\nJ.    Implementation of Budget Announcements 2023-24\\nThe Document summarises the status of implementation of the announcements made by\\nHon’ble Finance Minister in the Budget Speech 2023-24.']"
+      ]
+     },
+     "execution_count": 31,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "texts"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 32,
+   "id": "21eca6fa-8022-40e3-b134-9d727e119faa",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/langchain_core/_api/deprecation.py:139: LangChainDeprecationWarning: The class `OpenAIEmbeddings` was deprecated in LangChain 0.0.9 and will be removed in 0.3.0. An updated version of the class exists in the langchain-openai package and should be used instead. To use it run `pip install -U langchain-openai` and import as `from langchain_openai import OpenAIEmbeddings`.\n",
+      "  warn_deprecated(\n"
+     ]
+    }
+   ],
+   "source": [
+    "embeddings = OpenAIEmbeddings()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 33,
+   "id": "14bdd174-601b-4cc9-89e7-8c9de9053e4a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "docsearch = FAISS.from_texts(texts, embeddings)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 35,
+   "id": "51fc528d-6481-4a20-9d5c-49277843758a",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/langchain_core/_api/deprecation.py:139: LangChainDeprecationWarning: The class `OpenAI` was deprecated in LangChain 0.0.10 and will be removed in 0.3.0. An updated version of the class exists in the langchain-openai package and should be used instead. To use it run `pip install -U langchain-openai` and import as `from langchain_openai import OpenAI`.\n",
+      "  warn_deprecated(\n"
+     ]
+    }
+   ],
+   "source": [
+    "chain = load_qa_chain(OpenAI(), chain_type=\"stuff\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 44,
+   "id": "3c763341-938b-4ad1-85d4-e4280e51ed1c",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "' I do not have a GPT version. I am an AI language model designed to assist with answering questions and providing information.'"
+      ]
+     },
+     "execution_count": 44,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "query = \"what GPT version are you?\"\n",
+    "docs = docsearch.similarity_search(query)\n",
+    "chain.run(input_documents=docs, question=query)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ed01984b-03f6-402d-aa71-b954894dbc40",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "11a1c190-3a72-4587-af39-88f237046072",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "bfe36466-3363-4acc-9764-95a50d6ec67c",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "83a1c3cd-f789-498a-9773-ef1d57e7e63d",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "9c033c07-ce8c-4ff1-a351-7ef246fc364f",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.10.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
